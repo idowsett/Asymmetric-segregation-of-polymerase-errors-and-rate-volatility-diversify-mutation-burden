@@ -27,8 +27,8 @@ binomial model. Thus, in a given division, Dm and Mm are constrained to be
 within the same Poisson distribution."""
 
 # Output Files(s) folder:
-File_save_location = "C:/Users/Sett/Desktop/Temp Photos"
-
+from pathlib import Path
+File_save_location  = Path.cwd()
 
 #Defined functions
 """The first two functions were adapted from the following stackoverflow discussion thread:

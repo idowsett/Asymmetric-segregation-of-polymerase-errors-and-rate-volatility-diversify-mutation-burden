@@ -21,7 +21,8 @@ process governs the mutator phenotype in all cell divisions. To illustrate this 
 we extrapolated the haploid genome mutation rate observed in yeast to humans."""
 
 # Output Files(s) folder:
-File_save_location = "C:/Users/Sett/Desktop/Temp Photos"
+from pathlib import Path
+File_save_location  = Path.cwd()
 
 # Defined functions
 """chr_mu_dict is a dictionary where the keys represent chromosomes in a diploid

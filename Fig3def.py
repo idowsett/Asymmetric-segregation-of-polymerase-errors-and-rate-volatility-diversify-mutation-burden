@@ -25,7 +25,8 @@ rates of individual divisions. With these values, the script then
 simulates the distribution of error counts in individual divisions."""
 
 # Output Files(s) folder:
-File_save_location = "C:/Users/Sett/Desktop/Temp Photos"
+from pathlib import Path
+File_save_location  = Path.cwd()
 
 # Defined functions
 """chr_mu_dict is a dictionary where the keys represent chromosomes in a diploid
