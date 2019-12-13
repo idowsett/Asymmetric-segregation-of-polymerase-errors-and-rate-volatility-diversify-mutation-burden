@@ -18,6 +18,6 @@ Required 3rd party Python 3.6.5 packages (and all dependencies), available throu
 latest versions of Scipy, pandas, plotly, matplotlib, seaborn.
 May be run through a standard Windows 10 command line (e.g. Powershell). 
 
-An R script performs finite mixture modeling for Fig1 (Fig1b.R). 
+An R script performs mixture modeling and AIC scoring for Fig1 (Fig1b.R). 
 Required R v3.5.3 libraries (and all dependencies) for file Fig1b.R:
 countreg, data.table, dplyr, flexmix, ggplot2
