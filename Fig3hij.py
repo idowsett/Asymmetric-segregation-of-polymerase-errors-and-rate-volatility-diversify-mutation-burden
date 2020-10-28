@@ -1,4 +1,4 @@
-# For Fig.3(g-i), Dowsett et al.
+# For Fig.3(h-j), Dowsett et al.
 import glob
 import pandas as pd
 import numpy as np
