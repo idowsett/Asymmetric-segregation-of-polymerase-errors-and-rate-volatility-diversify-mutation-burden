@@ -1,4 +1,4 @@
-# For Fig.3d,e,f, Dowsett et al. (pol3-01/pol3-01 msh6/msh6 diploid cells)
+# For Fig.3e,f,g, Dowsett et al. (pol3-01/pol3-01 msh6/msh6 diploid cells)
 import glob
 import pandas as pd
 import numpy as np
