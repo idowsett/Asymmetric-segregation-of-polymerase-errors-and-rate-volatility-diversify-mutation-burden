@@ -1,4 +1,4 @@
-# For Extended Fig 8, Dowsett et al. (pol2-4 msh6 haploid cells)
+# For Supplementary Fig 6, Dowsett et al. (pol2-4 msh6 haploid cells)
 import glob
 import pandas as pd
 import numpy as np
