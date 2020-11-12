@@ -53,7 +53,7 @@ def chr_mut_p(chr_mu_dict,c):
 def chr_mut_bp(chr_mu_dict,c):
     return {k:(poisson.rvs(mu=(v*2), size=c)) for (k,v) in chr_mu_dict.items()}
 
-# multiplies value by randomly selected 0 or 1 to mimic Mendelian segregation.
+# multiplies value by randomly selected 0 or 1 to mimic mitotic segregation.
 def binomialize(x):
     return x * (random.randint(0,1))
 
@@ -68,7 +68,7 @@ def mk_df_p(chr_mu_dict,c):
     df_p["sum"]=df_p.sum(axis=1)
     return df_p
 
-# simulates c iterations of fixed mutations counts arising by a binomial-Poisson process.
+# simulates c iterations of fixed mutations counts arising by a Poisson-binomial process.
 def mk_df_bp(chr_mu_dict,c):
     data_poisson2_p = chr_mut_bp(chr_mu_dict,c)
     dfas_p = pd.DataFrame.from_dict(data_poisson2_p)
@@ -107,7 +107,7 @@ for chrfile in glob.glob(r"G:\My Drive\Volatility File Share\YeastGenome\*_rm.*"
     chr_lenlist.append(count)
 tot_bp = sum(chr_lenlist)
 
-#Generates Poisson and binomial-Poisson distributions.
+#Generates Poisson and Poisson-binomial distributions.
 mu=hap_mu
 Dlist=[]
 D2list=[]
@@ -115,7 +115,7 @@ chr_mu_dict = mk_chr_mu_dict(mu,chr_lenlist,tot_bp,chr_list_a,chr_list_b)
 df_p = mk_df_p(chr_mu_dict,n)
 df2_p = mk_df_bp(chr_mu_dict,n)
 print("Index of Dispersion for Poisson, n=",n,",",index_dis(df_p))
-print("Index of Dispersion for binomial-Poisson, n=",n,",",index_dis(df2_p))
+print("Index of Dispersion for Poisson-binomial, n=",n,",",index_dis(df2_p))
 
 #simulates variation in index of dispersion given a small sample size
 counter = 0
@@ -127,9 +127,9 @@ while counter < n:
     D2list.append(index_dis(df2_ps))
     counter += 1
 print("The mean index of dispersion for Poisson, n=",sample,",", mean(Dlist),"+/-",stdev(Dlist))
-print("The mean index of dispersion for binomial-Poisson, n=", sample,",",mean(D2list),"+/-",stdev(D2list))
+print("The mean index of dispersion for Poisson-binomial, n=", sample,",",mean(D2list),"+/-",stdev(D2list))
 
-#Generates negative binomial and binomial-negative binomial distributions.
+#Generates negative binomial and gamma-Poisson-binomial distributions.
 """The following returns a gamma distribution of rates of mismatch formation
 and then divides each value by 4, since we're looking at the number of fixed mutations
 per haploid genome. This distribution will be our input for n divisions,
@@ -149,12 +149,12 @@ df2_nb = dfas_nb.applymap(binomialize)
 df_nb["sum"] = df_nb.sum(axis=1)
 df2_nb["sum"] = df2_nb.sum(axis=1)
 print("Index of Dispersion for negative binomial, n=",n,",",index_dis(df_nb))
-print("Index of Dispersion for binomial-negative binomial, n=",n,",",index_dis(df2_nb))
+print("Index of Dispersion for gamma-Poisson-binomial, n=",n,",",index_dis(df2_nb))
 
 sns.set(style="white", palette="bright", color_codes=True, rc={"lines.linewidth": 1.0})
 plt.rcParams['patch.linewidth'] = 0
 
-# Plots Poisson vs binomial-Poisson distributions.
+# Plots Poisson vs Poisson-binomial distributions.
 fig1, ax = plt.subplots(figsize=(2.5, 2.5))
 sns.distplot(df_p["sum"],
                   bins=list(range(20,120,1)),
@@ -171,7 +171,7 @@ ax.set(xlabel='Mutations/Division', ylabel='Density')
 
 fig1.savefig(f"{File_save_location}/ASmut_ye2n.pdf",transparent = True,bbox_inches='tight')
 
-#Plots the distributions of the indices of dispersion from Poisson and binomial-Poisson simulations.
+#Plots the distributions of the indices of dispersion from Poisson and Poisson-binomial simulations.
 fig2, ax = plt.subplots(figsize=(2.5, 2.5))
 
 sns.distplot(Dlist,
