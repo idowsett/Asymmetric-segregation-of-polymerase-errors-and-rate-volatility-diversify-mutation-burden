@@ -15,14 +15,8 @@ from statistics import mean
 from statistics import stdev
 
 # Introduction
-"""The following Python 3 code simulates the extent to which mutator volatility
-and asymmetric segregation of mutations lead to overdispersion  It first simulates
-the contribution of asymmetric segregation alone, assuming a single Poisson process
-governs the mutator phenotype in all cell divisions. The script then uses the parameters for
-a negative binomial model of mismatches segregated to daughter (Dm) and mother (Mm)
-to define a gamma distribution of lambda values governing the underlying mutation
-rates of individual divisions. With these values, the script then
-simulates the distribution of error counts in individual divisions."""
+"""The following Python 3 code simulates the extent to which asymmetric segregation of mutations leads to overdispersion
+in a haploid strain with a modest mutator phenotype compared to simple Poisson process."""
 
 # Output Files(s) folder:
 from pathlib import Path
@@ -51,7 +45,7 @@ def chr_mut_p(chr_mu_dict,c):
 def chr_mut_bp(chr_mu_dict,c):
     return {k:(poisson.rvs(mu=(v*2), size=c)) for (k,v) in chr_mu_dict.items()}
 
-# multiplies value by randomly selected 0 or 1 to mimic Mendelian segregation.
+# multiplies value by randomly selected 0 or 1 to mimic mitotic segregation.
 def binomialize(x):
     return x * (random.randint(0,1))
 
@@ -66,7 +60,7 @@ def mk_df_p(chr_mu_dict,c):
     df_p["sum"]=df_p.sum(axis=1)
     return df_p
 
-# simulates c iterations of fixed mutations counts arising by a binomial-Poisson process.
+# simulates c iterations of fixed mutations counts arising by a Poisson-binomial process.
 def mk_df_bp(chr_mu_dict,c):
     data_poisson2_p = chr_mut_bp(chr_mu_dict,c)
     dfas_p = pd.DataFrame.from_dict(data_poisson2_p)
@@ -96,7 +90,7 @@ for chrfile in glob.glob(r"G:\My Drive\Volatility File Share\YeastGenome\*_rm.*"
     chr_lenlist.append(count)
 tot_bp = sum(chr_lenlist)
 
-#Generates Poisson and binomial-Poisson distributions.
+#Generates Poisson and Poisson-binomial distributions.
 mu=hap_mu
 Dlist=[]
 D2list=[]
@@ -104,7 +98,7 @@ chr_mu_dict = mk_chr_mu_dict(mu,chr_lenlist,tot_bp,chr_list_a)
 df_p = mk_df_p(chr_mu_dict,n)
 df2_p = mk_df_bp(chr_mu_dict,n)
 print("Index of Dispersion for Poisson, n=",n,",",index_dis(df_p))
-print("Index of Dispersion for binomial-Poisson, n=",n,",",index_dis(df2_p))
+print("Index of Dispersion for Poisson-binomial, n=",n,",",index_dis(df2_p))
 
 #simulates variation in index of dispersion given a small sample size
 counter = 0
@@ -116,14 +110,14 @@ while counter < n:
     D2list.append(index_dis(df2_ps))
     counter += 1
 print("The mean index of dispersion for Poisson, n=",sample,",", mean(Dlist),"+/-",stdev(Dlist))
-print("The mean index of dispersion for binomial-Poisson, n=", sample,",",mean(D2list),"+/-",stdev(D2list))
+print("The mean index of dispersion for Poisson-binomial, n=", sample,",",mean(D2list),"+/-",stdev(D2list))
 
 
 
 sns.set(style="white", palette="bright", color_codes=True, rc={"lines.linewidth": 1.0})
 plt.rcParams['patch.linewidth'] = 0
 
-# Plots Poisson vs binomial-Poisson distributions.
+# Plots Poisson vs Poisson-binomial distributions.
 fig1, ax = plt.subplots(figsize=(2.5, 2.5))
 sns.distplot(df_p["sum"],
                   bins=list(range(0,10,1)),
@@ -140,7 +134,7 @@ ax.set(xlabel='Mutations/Division', ylabel='Density')
 
 fig1.savefig(f"{File_save_location}/ASmut_ye1n.pdf",transparent = True,bbox_inches='tight')
 
-#Plots the distributions of the indices of dispersion from Poisson and binomial-Poisson simulations.
+#Plots the distributions of the indices of dispersion from Poisson and Poisson-binomial simulations.
 fig2, ax = plt.subplots(figsize=(2.5, 2.5))
 
 sns.distplot(Dlist,
