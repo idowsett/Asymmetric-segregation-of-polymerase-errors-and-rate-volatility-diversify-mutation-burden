@@ -1,4 +1,4 @@
-# For Fig.3(g-j), Dowsett et al. Revised version uploaded to Github on 11.12.20 with slight modifications.
+# For Fig.3(g-j), Dowsett et al. Revised version uploaded to Github on 11.12.20.
 import glob
 import pandas as pd
 import numpy as np
