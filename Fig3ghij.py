@@ -1,4 +1,4 @@
-# For Fig.3(g-j), Dowsett et al.
+# For Fig.3(g-j), Dowsett et al. Revised version uploaded to Github on 11.12.20 with slight modifications.
 import glob
 import pandas as pd
 import numpy as np
@@ -76,6 +76,13 @@ def ye2hu_mr(yeast_1n_mu):
     hu_mu = (tot_bp/11e7)*yeast_1n_mu
     return hu_mu
 
+def linregparams (df):
+    x = df["rate"]
+    y = df["ID"]
+    slope, intercept, r_value, p_value, std_err = stats.linregress(x,y)
+    print("slope: %f    intercept: %f    p_value: %f    std_err: %f" % (slope, intercept, p_value, std_err))
+    print("R-squared: %f" % r_value**2)
+
 # Input parameters from glm.nb in R for the combined distribution of Dm and Mm counts.
 munb = 4.927 # rate parameter for negative binomial (munb)
 theta = 60.42 # shape parameter
@@ -140,10 +147,10 @@ D2rlist=[]
 for i in hu_mu_rng:
     mu=i
     chr_mu_dict = mk_chr_mu_dict(mu,chr_lenlist,tot_bp,chr_list_a,chr_list_b)
-    df_p = mk_df_p(chr_mu_dict,n)
-    df_bp = mk_df_bp(chr_mu_dict,n)
-    Drlist.append(index_dis(df_p))
-    D2rlist.append(index_dis(df_bp))
+    df_p1 = mk_df_p(chr_mu_dict,n)
+    df_pb1 = mk_df_pb(chr_mu_dict,n)
+    Drlist.append(index_dis(df_p1))
+    D2rlist.append(index_dis(df_pb1))
 Df_IDrng_p=pd.DataFrame()
 Df_IDrng_pb=pd.DataFrame()
 Df_IDrng_p["rate"]=hu_mu_rng
@@ -214,10 +221,10 @@ sns.distplot(df2_nb["sum"],
 ax.tick_params(bottom=True,left=True,labelsize=10)
 ax.set(xlabel='Mutations/Division', ylabel='Density')
 
-fig1.savefig(f"{File_save_location}/ASmut_hu530.pdf",transparent = True,bbox_inches='tight')
+fig1.savefig(f"{File_save_location}/ASmut_hu530a.pdf",transparent = True,bbox_inches='tight')
 
 # Plots Poisson vs Poisson-binomial distributions after 30 divisions.
-fig2, ax = plt.subplots(figsize=(2.5, 2.5))
+fig2, ax = plt.subplots(figsize=(2, 2.5))
 
 sns.distplot(plist,
                   bins=list(range(51000,63000,200)),
@@ -232,7 +239,7 @@ sns.distplot(pblist,
 ax.tick_params(bottom=True,left=True,labelsize=10)
 ax.set(xlabel='Mutation Burden', ylabel='Density')
 
-fig2.savefig(f"{File_save_location}/MB_hu30.pdf",transparent = True,bbox_inches='tight')
+fig2.savefig(f"{File_save_location}/MB_hu30a.pdf",transparent = True,bbox_inches='tight')
 
 # Plots Poisson vs Poisson-binomial mutation accumulation in individual lines over 10 divisions.
 fig3, ax = plt.subplots(figsize=(2,2.5))
@@ -241,7 +248,7 @@ ax.set(xlim=(0, 10),ylim=(0,25000))
 sns.lineplot(x="Div", y="Total Mut", hue='line', palette=sns.color_palette("Set1", n), legend=False,lw=0.5,data=df2RTm)
 sns.lineplot(x="Div", y="Total Mut",legend=False, lw=1,color="k",data=dfRTm)
 
-fig3.savefig(f"{File_save_location}/MB_huMutAc.pdf",transparent = True,bbox_inches='tight')
+fig3.savefig(f"{File_save_location}/MB_huMutAc1.pdf",transparent = True,bbox_inches='tight')
 
 # Plots changes in the index of dispersion as a function of mutation rate.
 fig4, ax = plt.subplots(figsize=(2, 2.5))
@@ -250,4 +257,4 @@ ax.set(xlim=(0, 1000),ylim=(0,55))
 sns.regplot(x="rate", y="ID", data=Df_IDrng_p, color="gray",marker='o', scatter_kws={'s':1})
 sns.regplot(x="rate", y="ID", data=Df_IDrng_pb, color="orange",marker='o', scatter_kws={'s':1})
 
-fig4.savefig(f"{File_save_location}/MR_IDcorr.pdf",transparent = True,bbox_inches='tight')
+fig4.savefig(f"{File_save_location}/MR_IDcorr1.pdf",transparent = True,bbox_inches='tight')
