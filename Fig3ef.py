@@ -117,10 +117,10 @@ Dlist=[]
 D2list=[]
 D3list=[]
 chr_mu_dict = mk_chr_mu_dict(mu,chr_lenlist,tot_bp,chr_list_a,chr_list_b)
-# df_p = mk_df_p(chr_mu_dict,n)
-# df2_p = mk_df_pb(chr_mu_dict,n)
-# print("Index of Dispersion for Poisson, n=",n,",",index_dis(df_p))
-# print("Index of Dispersion for Poisson-binomial, n=",n,",",index_dis(df2_p))
+df_p = mk_df_p(chr_mu_dict,n)
+df2_p = mk_df_pb(chr_mu_dict,n)
+print("Index of Dispersion for Poisson, n=",n,",",index_dis(df_p))
+print("Index of Dispersion for Poisson-binomial, n=",n,",",index_dis(df2_p))
 
 #Generates gamma-Poisson and gamma-Poisson-binomial distributions.
 """The following returns a gamma distribution of rates of mismatch formation
