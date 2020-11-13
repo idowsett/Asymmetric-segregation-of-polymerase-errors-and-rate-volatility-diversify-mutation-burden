@@ -1,4 +1,4 @@
-# For Fig.3e,f,g, Dowsett et al. (pol3-01/pol3-01 msh6/msh6 diploid cells)
+# For Fig.3e,f Dowsett et al.
 import glob
 import pandas as pd
 import numpy as np
@@ -18,11 +18,15 @@ from statistics import stdev
 """The following Python 3 code simulates the extent to which mutator volatility
 and asymmetric segregation of mutations lead to overdispersion  It first simulates
 the contribution of asymmetric segregation alone, assuming a single Poisson process
-governs the mutator phenotype in all cell divisions. The script then uses the parameters for
+governs the mutator phenotype in all cell divisions. We call this a Poisson-binomial
+process in our annotation. The script then uses the parameters for
 a negative binomial model of mismatches segregated to daughter (Dm) and mother (Mm)
 to define a gamma distribution of lambda values governing the underlying mutation
 rates of individual divisions. With these values, the script then
-simulates the distribution of error counts in individual divisions."""
+simulates the distribution of error counts in individual divisions. This approach
+is based on the fact that negative binomials can be modeled as a gamma-Poisson
+mixture. Thus, when accounting for segregation, we refer to this as a gamma-Poisson-binomial
+process."""
 
 # Output Files(s) folder:
 from pathlib import Path
@@ -50,10 +54,10 @@ def chr_mut_p(chr_mu_dict,c):
     return {k:(poisson.rvs(mu=v, size=c)) for (k,v) in chr_mu_dict.items()}
 
 # as above, except rate is doubled to represent actual rate of mispair formation.
-def chr_mut_bp(chr_mu_dict,c):
+def chr_mut_pb(chr_mu_dict,c):
     return {k:(poisson.rvs(mu=(v*2), size=c)) for (k,v) in chr_mu_dict.items()}
 
-# multiplies value by randomly selected 0 or 1 to mimic mitotic segregation.
+# multiplies value by randomly selected 0 or 1 to mimic Mendelian segregation.
 def binomialize(x):
     return x * (random.randint(0,1))
 
@@ -69,8 +73,8 @@ def mk_df_p(chr_mu_dict,c):
     return df_p
 
 # simulates c iterations of fixed mutations counts arising by a Poisson-binomial process.
-def mk_df_bp(chr_mu_dict,c):
-    data_poisson2_p = chr_mut_bp(chr_mu_dict,c)
+def mk_df_pb(chr_mu_dict,c):
+    data_poisson2_p = chr_mut_pb(chr_mu_dict,c)
     dfas_p = pd.DataFrame.from_dict(data_poisson2_p)
     df2_p = dfas_p.applymap(binomialize) #Mimics segregation of each chromosome.
     df2_p["sum"]=df2_p.sum(axis=1)
@@ -87,7 +91,7 @@ gscale = gv/muc #scale paramater of the Gamma distribution of lambda.
 hap_mu = muc/4 #rate of fixed mutations per haploid genome.
 print("The haploid rate of fixed mutations is", hap_mu)
 
-n = 10000 # number of iterations to perform.
+n = 1000 # number of iterations to perform.
 
 #Counts the number of unmasked nucleotides on each chr in the masked haploid yeast genome
 chr_list_a = [] #(list_a and list_b for two sets of chrs in 2n cell)
@@ -111,36 +115,27 @@ tot_bp = sum(chr_lenlist)
 mu=hap_mu
 Dlist=[]
 D2list=[]
+D3list=[]
 chr_mu_dict = mk_chr_mu_dict(mu,chr_lenlist,tot_bp,chr_list_a,chr_list_b)
-df_p = mk_df_p(chr_mu_dict,n)
-df2_p = mk_df_bp(chr_mu_dict,n)
-print("Index of Dispersion for Poisson, n=",n,",",index_dis(df_p))
-print("Index of Dispersion for Poisson-binomial, n=",n,",",index_dis(df2_p))
+# df_p = mk_df_p(chr_mu_dict,n)
+# df2_p = mk_df_pb(chr_mu_dict,n)
+# print("Index of Dispersion for Poisson, n=",n,",",index_dis(df_p))
+# print("Index of Dispersion for Poisson-binomial, n=",n,",",index_dis(df2_p))
 
-#simulates variation in index of dispersion given a small sample size
-counter = 0
-sample = 200
-while counter < n:
-    df_ps = mk_df_p(chr_mu_dict,sample)
-    df2_ps = mk_df_bp(chr_mu_dict,sample)
-    Dlist.append(index_dis(df_ps))
-    D2list.append(index_dis(df2_ps))
-    counter += 1
-print("The mean index of dispersion for Poisson, n=",sample,",", mean(Dlist),"+/-",stdev(Dlist))
-print("The mean index of dispersion for Poisson-binomial, n=", sample,",",mean(D2list),"+/-",stdev(D2list))
-
-#Generates negative binomial and gamma-Poisson-binomial distributions.
+#Generates gamma-Poisson and gamma-Poisson-binomial distributions.
 """The following returns a gamma distribution of rates of mismatch formation
 and then divides each value by 4, since we're looking at the number of fixed mutations
 per haploid genome. This distribution will be our input for n divisions,
-each using a different lambda."""
+each using a different lambda. Note that chr_mut_pb takes these values and doubles them
+to account for the actual rate of mispair formation. The simulated counts for each chromosome
+then become "binomialized" to account for segregation."""
 data_gamma = (gamma.rvs(a=theta, scale=gscale, size=n))/4
 df_nb = pd.DataFrame(columns=chr_list_a+chr_list_b)
 dfas_nb = pd.DataFrame(columns=chr_list_a+chr_list_b)
 for g in data_gamma:
     chr_mu_dict = mk_chr_mu_dict(g,chr_lenlist,tot_bp,chr_list_a,chr_list_b)
     data_poisson = chr_mut_p(chr_mu_dict, 1)
-    data_poisson2 = chr_mut_bp(chr_mu_dict, 1)
+    data_poisson2 = chr_mut_pb(chr_mu_dict, 1)
     dfa = pd.DataFrame.from_dict(data_poisson)
     df_nb = df_nb.append(dfa, ignore_index=True)
     dfa2 = pd.DataFrame.from_dict(data_poisson2)
@@ -148,47 +143,37 @@ for g in data_gamma:
 df2_nb = dfas_nb.applymap(binomialize)
 df_nb["sum"] = df_nb.sum(axis=1)
 df2_nb["sum"] = df2_nb.sum(axis=1)
-print("Index of Dispersion for negative binomial, n=",n,",",index_dis(df_nb))
+print("Index of Dispersion for gamma-Poisson, n=",n,",",index_dis(df_nb))
 print("Index of Dispersion for gamma-Poisson-binomial, n=",n,",",index_dis(df2_nb))
+
+#simulates variation in index of dispersion given a small sample size
+counter = 0
+sample = 200
+while counter < n:
+    df_ps = mk_df_p(chr_mu_dict,sample)
+    df2_ps = mk_df_pb(chr_mu_dict,sample)
+    Dlist.append(index_dis(df_ps))
+    D2list.append(index_dis(df2_ps))
+    data_gamma = (gamma.rvs(a=theta, scale=gscale, size=sample))/4
+    dfas_nbs = pd.DataFrame(columns=chr_list_a+chr_list_b)
+    for g in data_gamma:
+        chr_mu_dict = mk_chr_mu_dict(g,chr_lenlist,tot_bp,chr_list_a,chr_list_b)
+        data_poisson2 = chr_mut_pb(chr_mu_dict, 1)
+        dfa2 = pd.DataFrame.from_dict(data_poisson2)
+        dfas_nbs = dfas_nbs.append(dfa2, ignore_index=True)
+        df2_nbs = dfas_nbs.applymap(binomialize)
+        df2_nbs["sum"] = df2_nbs.sum(axis=1)
+    D3list.append(index_dis(df2_nbs))
+    counter += 1
+print("The mean index of dispersion for Poisson, n=",sample,",", mean(Dlist),"+/-",stdev(Dlist))
+print("The mean index of dispersion for Poisson-binomial, n=", sample,",",mean(D2list),"+/-",stdev(D2list))
+print("The mean index of dispersion for gamma-Poisson-binomial, n=", sample,",",mean(D3list),"+/-",stdev(D3list))
 
 sns.set(style="white", palette="bright", color_codes=True, rc={"lines.linewidth": 1.0})
 plt.rcParams['patch.linewidth'] = 0
 
-# Plots Poisson vs Poisson-binomial distributions.
+# Plots Poisson, Poisson-binomial, and gamma-Poisson-binomial distributions.
 fig1, ax = plt.subplots(figsize=(2.5, 2.5))
-sns.distplot(df_p["sum"],
-                  bins=list(range(20,120,1)),
-                  kde=False,
-                  norm_hist=True,
-                  color='gray')
-sns.distplot(df2_p["sum"],
-                  bins=list(range(20,120,1)),
-                  kde=False,
-                  norm_hist=True,
-                  color='orange')
-ax.tick_params(bottom=True,left=True,labelsize=10)
-ax.set(xlabel='Mutations/Division', ylabel='Density')
-
-fig1.savefig(f"{File_save_location}/ASmut_ye2n.pdf",transparent = True,bbox_inches='tight')
-
-#Plots the distributions of the indices of dispersion from Poisson and Poisson-binomial simulations.
-fig2, ax = plt.subplots(figsize=(2.5, 2.5))
-
-sns.distplot(Dlist,
-                bins=[i for i in np.arange(0.25,5,0.02)],
-                  kde=False, norm_hist=True,
-                  color='gray')
-ax = sns.distplot(D2list,
-                  bins=[i for i in np.arange(0.25,5,0.02)],
-                  kde=False, norm_hist=True,
-                  color='orange')
-ax.tick_params(bottom=True,left=True,labelsize=10)
-ax.set(xlabel='Index of Dispersion', ylabel='Density')
-
-fig2.savefig(f"{File_save_location}/IDmut_ye2n.pdf",transparent = True,bbox_inches='tight')
-
-# Plots all distributions on one plot
-fig4, ax = plt.subplots(figsize=(2.5, 2.5))
 sns.distplot(df_p['sum'],
                   bins=list(range(20,120,2)),
              hist = False,
@@ -200,22 +185,42 @@ sns.distplot(df2_p['sum'],
              hist = False,
 #                   kde=False,
                   norm_hist=True,
-                  color='slateblue')
+                  color='orange')
 
-sns.distplot(df_nb['sum'],
-                  bins=list(range(20,120,2)),
-             hist = False,
-#                   kde=False,
-                  norm_hist=True,
-                  color='green')
+# sns.distplot(df_nb['sum'],
+#                   bins=list(range(20,120,2)),
+#              hist = False,
+# #                   kde=False,
+#                   norm_hist=True,
+#                   color='green')
 sns.distplot(df2_nb['sum'],
                   bins=list(range(20,120,2)),
              hist = False,
 #                   kde=False,
                   norm_hist=True,
-                  color='salmon')
+                  color='green')
 ax.tick_params(bottom=True,left=True,labelsize=10)
 ax.set(xlim=(0, 150))
 ax.set(xlabel='Mutations/Division', ylabel='Density')
 
-fig4.savefig(f"{File_save_location}/CombinedModelalt_ye2n.pdf",transparent = True,bbox_inches='tight')
+fig1.savefig(f"{File_save_location}/CombinedModelalt_ye2n529v2.pdf",transparent = True,bbox_inches='tight')
+
+#Plots the distributions of the indices of dispersion from Poisson, Poisson-binomial, and gamma-Poisson-binomial simulations.
+fig2, ax = plt.subplots(figsize=(2.5, 2.5))
+
+sns.distplot(Dlist,
+                bins=[i for i in np.arange(0.25,6,0.02)],
+                  kde=False, norm_hist=True,
+                  color='gray')
+ax = sns.distplot(D2list,
+                  bins=[i for i in np.arange(0.25,6,0.02)],
+                  kde=False, norm_hist=True,
+                  color='orange')
+ax = sns.distplot(D3list,
+                  bins=[i for i in np.arange(0.25,6,0.02)],
+                  kde=False, norm_hist=True,
+                  color='green')
+ax.tick_params(bottom=True,left=True,labelsize=10)
+ax.set(xlabel='Index of Dispersion', ylabel='Density')
+
+fig2.savefig(f"{File_save_location}/IDmut_ye2n529.pdf",transparent = True,bbox_inches='tight')
