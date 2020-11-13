@@ -1,4 +1,5 @@
-# for Fig.2; Dowsett et al.
+# for Fig.2bcdef; Dowsett et al. Revised
+import glob
 import math
 import pandas as pd
 import numpy as np
@@ -24,7 +25,14 @@ the negative binomial model.  In the second model, designated "gp", mutagenesis 
 entire genome is governed by the same Poisson process, but the rate varies from one
 division to the next within a Gamma distribution of lambda values defined by the negative
 binomial model. Thus, in a given division, Dm and Mm are constrained to be
-within the same Poisson distribution."""
+within the same Poisson distribution.
+
+To better understand this volatility, the code simulates the expected distributions
+of full replication error counts from 50 divisions assuming different models of mutagenesis.
+To capture the dispersion of each simulation, we calculate its index of dispersion,
+which is defined as the variance divided by the mean (σ^2/μ). By running multiple simulations,
+the range of expected distributions from small sample sizes can be assessed and then compared
+to the index of dispersion of the actual data."""
 
 # Output Files(s) folder:
 from pathlib import Path
@@ -32,10 +40,15 @@ File_save_location  = Path.cwd()
 
 #Defined functions
 """The first two functions were adapted from the following stackoverflow discussion thread:
+
 https://stackoverflow.com/questions/40846992/alternative-parametrization-of-the-negative-binomial-in-scipy
+
 For additional background, see the following two web pages:
+
 https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.nbinom.html
+
 https://en.wikipedia.org/wiki/Negative_binomial_distribution
+
 scipy.nbinom takes n and p as shape parameters where "n" is the number of successes and "p" is
 the probability of a single success. Whereas nb is usually defined as a sequence of Bernoulli
 trials, repeated until a predefined nonrandom "r" number of FAILURES occurs, scipy defines nb
@@ -64,6 +77,89 @@ def linregparams (df):
     print("slope: %f    intercept: %f    p_value: %f    std_err: %f" % (slope, intercept, p_value, std_err))
     print("R-squared: %f" % r_value**2)
 
+"""chr_mu_dict is a dictionary where the keys represent chromosomes in a diploid
+cell and the values, their associated mutation rates. This assumes each chr
+contributes proportionately to the genome-wide mutation rate."""
+def mk_chr_mu_dict(mu,chr_lenlist,tot_bp,chr_list_a,chr_list_b):
+    ch_mu = []
+    for i in chr_lenlist:
+        ch_mu.append(mu*(i/tot_bp))
+    tuplesA=list(zip(chr_list_a,ch_mu))
+    tuplesB=list(zip(chr_list_b,ch_mu))
+    chr_mu_dict = {}
+    for i in tuplesA:
+        chr_mu_dict[i[0]]=i[1]
+    for i in tuplesB:
+        chr_mu_dict[i[0]]=i[1]
+    return chr_mu_dict
+
+# creates dict where keys are chrs, and values are arrays (length c) of fixed muts from a Poisson.
+def chr_mut_p(chr_mu_dict,c):
+    return {k:(poisson.rvs(mu=v, size=c)) for (k,v) in chr_mu_dict.items()}
+
+# as above, except rate is doubled to represent actual rate of mispair formation.
+def chr_mut_bp(chr_mu_dict,c):
+    return {k:(poisson.rvs(mu=(v*2), size=c)) for (k,v) in chr_mu_dict.items()}
+
+# multiplies value by randomly selected 0 or 1 to mimic Mendelian segregation.
+def binomialize(x):
+    return x * (random.randint(0,1))
+
+# returns index of dispersion for a distribution
+def index_dis(df):
+    return ((df["sum"].std())**2)/df["sum"].mean()
+
+# simulates c iterations of fixed mutations counts arising by a Poisson process.
+def mk_df_p(chr_mu_dict,c):
+    data_poisson_p = chr_mut_p(chr_mu_dict,c)
+    df_p = pd.DataFrame.from_dict(data_poisson_p)
+    df_p["sum"]=df_p.sum(axis=1)
+    return df_p
+
+# simulates c iterations of fixed mutation counts arising and segregating to two cells.
+def mk_df_bp(chr_mu_dict,c):
+    data_poisson2_p = chr_mut_bp(chr_mu_dict,c)
+    dfas_p = pd.DataFrame.from_dict(data_poisson2_p)
+    df_binomialize(dfas_p) #produces two dfs of mutation counts from reciprocol segregants
+    df2_cell1["sum"]=df2_cell1.sum(axis=1)
+    add_chr_totals(df2_cell1)
+    df2_cell2["sum"]=df2_cell2.sum(axis=1)
+    add_chr_totals(df2_cell2)
+
+def df_binomialize(df_input):
+    df_input_bintem = (df_input * 0) + 1 #makes a dataframe of 1's w/dimensions of df_input
+    df_input_binom = df_input_bintem.applymap(binomialize) #Randomly changes 1's to 0 for cell1
+#     print(df_input_binom)
+    df_input_binom_inv=abs(df_input_binom - 1) #Inverse of dfas_p_binom for cell2
+#     print(df_input_binom_inv)
+    df2_cell1 = df_input.mul(df_input_binom) #Multiplies mutations in cell1 by 1 or 0 to mimic segregation.
+    df2_cell2 = df_input.mul(df_input_binom_inv) #Mimics mutations in cell2 the inverse to mimic segregation.
+#     df2_cell1["sum"] = df2_cell1.sum(axis=1)
+    add_chr_totals(df2_cell1)
+    df2_cell1 = pd.melt(df2_cell1,value_vars = chr_list,var_name='Chr', value_name='Segregant 1')
+#     df2_cell2["sum"] = df2_cell2.sum(axis=1)
+    add_chr_totals(df2_cell2)
+    df2_cell2 = pd.melt(df2_cell2,value_vars = chr_list,var_name='Chr', value_name='Segregant 2')
+    return df2_cell1,df2_cell2
+
+def add_chr_totals(df_cell): #adds muts on a and b sets of chromosomes to get observed mut/chr.
+    df_cell["I"] = df_cell["Ia"] + df_cell["Ib"]
+    df_cell["II"] = df_cell["IIa"] + df_cell["IIb"]
+    df_cell["III"] = df_cell["IIIa"] + df_cell["IIIb"]
+    df_cell["IV"] = df_cell["IVa"] + df_cell["IVb"]
+    df_cell["V"] = df_cell["Va"] + df_cell["Vb"]
+    df_cell["VI"] = df_cell["VIa"] + df_cell["VIb"]
+    df_cell["VII"] = df_cell["VIIa"] + df_cell["VIIb"]
+    df_cell["VIII"] = df_cell["VIIIa"] + df_cell["VIIIb"]
+    df_cell["IX"] = df_cell["IXa"] + df_cell["IXb"]
+    df_cell["X"] = df_cell["Xa"] + df_cell["Xb"]
+    df_cell["XI"] = df_cell["XIa"] + df_cell["XIb"]
+    df_cell["XII"] = df_cell["XIIa"] + df_cell["XIIb"]
+    df_cell["XIII"] = df_cell["XIIIa"] + df_cell["XIIIb"]
+    df_cell["XIV"] = df_cell["XIVa"] + df_cell["XIVb"]
+    df_cell["XV"] = df_cell["XVa"] + df_cell["XVb"]
+    df_cell["XVI"] = df_cell["XVIa"] + df_cell["XVIb"]
+
 # Input parameters for nb from glm.nb in R.
 mu = 4.927
 theta = 60.42
@@ -75,7 +171,12 @@ n = 1000
 muc = math.exp(mu) #mu is in log form and must be exponentiated.
 gv = (muc)**2/theta #gv is the variance of the Gamma distribution of lambda
 gscale = gv/muc #gives the scale paramater of the Gamma distribution of lambda
+hap_mu = muc/4 #rate of fixed mutations per haploid genome.
+print("The haploid rate of fixed mutations is", hap_mu)
 
+data_nb = nb_rvs(muc,theta,loc=0,size=10000)
+data_gamma = (gamma.rvs(a=theta,scale=gscale,size=n)) #Generates list of gamma distributed rates.
+data_poisson = poisson.rvs(mu=(mean(data_gamma)), size =10000)
 
 """Simulates Dm and Mm counts assuming mismatches arise each division from the same negative
 binomial process."""
@@ -89,9 +190,10 @@ dfnb = pd.DataFrame.from_records(nbtuples,columns=['Dm','Mm'])
 dfnb["sum"] = dfnb.sum(axis=1)
 print("Linear regression of nb model:")
 linregparams(dfnb)
+# print(dfnb)
 
 """Simulates Dm and Mm counts assuming mismatches arise each division from a Poisson process
-whose rate is drawn each time from a Gamma distribution."""
+whose rate is drawn each time from a gamma distribution."""
 data_gamma = (gamma.rvs(a=theta,scale=gscale,size=n)) #Generates list of gamma distributed rates.
 gptuples = []
 for g in data_gamma:
@@ -103,141 +205,195 @@ print("Linear regression of gp model:")
 linregparams(dfgp)
 
 """Creates data frame of actual data for comparison."""
-df_data = pd.read_csv("G:\My Drive\Volatility File Share\Data\MisMatchCounts2.csv")
-df_data["sum"] = df_data.sum(axis=1)
+df_data = pd.read_csv("G:\My Drive\Volatility File Share\Data\MutInSegGroups.csv")
+# df_data["sum"] = df_data.sum(axis=1)
 print("Linear regression of data:")
 linregparams(df_data)
 
-"""Creates data frame of data, normalized for size of sequenced genome, for comparison."""
-df_data_N = pd.read_csv("G:\My Drive\Volatility File Share\Data\MisMatchCountNorm.csv")
-df_data_N["sum"] = df_data.sum(axis=1)
-print("Linear regression of data_Norm:")
-linregparams(df_data_N)
+#simulates variation in index of dispersion of full replication error counts of Poisson vs nb vs gp
+counter = 0
+sample = 50
+Dplist=[]
+Dnblist=[]
+Dgplist=[]
+while counter < n:
+    """The following simulates Dm and Mm counts assuming the number of mismatches are drawn
+    in every division from the same Poisson distribution."""
+    po1 = poisson.rvs(mu=muc,size=sample)
+    po2 = poisson.rvs(mu=muc,size=sample)
+    df_p = pd.DataFrame({'Dm':po1,'Mm':po2})
+    df_p["sum"] = df_p.sum(axis=1)
+
+    """The following simulates Dm and Mm counts assuming the number of mismatches are drawn
+    independently from within the negative binomial distribution."""
+    nb1 = nb_rvs(muc,theta,loc=0,size=sample)
+    nb2 = nb_rvs(muc,theta,loc=0,size=sample)
+    df_nb = pd.DataFrame({'Dm':nb1,'Mm':nb2})
+    df_nb["sum"] = df_nb.sum(axis=1)
+
+    """The following simulates Dm and Mm counts assuming mismatches arise each division from a
+    Poisson process whose rate is drawn each time from a gamma distribution."""
+    data_gamma = (gamma.rvs(a=theta,scale=gscale,size=sample)) #Generates list of gamma distributed rates.
+    gptuples = []
+    for g in data_gamma:
+        gpDmMm = poisson.rvs(mu=g, size=2)
+        gptuples.append(gpDmMm)
+    df_gp = pd.DataFrame.from_records(gptuples,columns=['Dm','Mm'])
+    df_gp["sum"] = df_gp.sum(axis=1)
+    Dplist.append(index_dis(df_p))
+    Dnblist.append(index_dis(df_nb))
+    Dgplist.append(index_dis(df_gp))
+    counter += 1
+print("The mean index of dispersion for Poisson, n=",sample,",", mean(Dplist),"+/-",stdev(Dplist))
+print("The mean index of dispersion for nb, n=", sample,",",mean(Dnblist),"+/-",stdev(Dnblist))
+print("The mean index of dispersion for gp, n=", sample,",",mean(Dgplist),"+/-",stdev(Dgplist))
+
+#Counts the number of unmasked nucleotides on each chr in the masked haploid yeast genome
+chr_list_a = [] #(list_a and list_b for two sets of chrs in 2n cell)
+chr_list_b = []
+chr_list = [] #Gives a list of chromosome names with out "a" or "b" added.
+chr_lenlist = []
+for chrfile in glob.glob(r"G:\My Drive\Volatility File Share\YeastGenome\*_rm.*"):
+    chr_rm = chrfile.split(".")[4] #gets the chr number from the fasta file name.
+    chr_list_a.append(chr_rm + "a")
+    chr_list_b.append(chr_rm + "b")
+    chr_list.append(chr_rm)
+    with open(chrfile, 'r') as f:
+        firstline = f.readline()
+        count = int(firstline.split(":")[5]) #gets chr length from header of fasta file
+        for line in f:  #counts "N"s in the fasta file and subtracts them from chr length.
+            for i in line:
+                if i == "N":
+                    count = count - 1
+    chr_lenlist.append(count)
+tot_bp = sum(chr_lenlist)
+
+#Models the occurrance and segregation of fixed mutations in pairs of segregating cells.
+
+"""The following returns a gamma distribution of rates of mismatch formation
+and then divides each value by 4, since we're looking at the number of fixed mutations
+per haploid genome. This distribution will be our input for n divisions,
+each using a different lambda. It then takes the dataframe of mismatch counts and generates
+the reciprocol mutation burdens expected in the resulting pairs of segregant cells."""
+size=50
+data_gamma = (gamma.rvs(a=theta, scale=gscale, size=size))/4
+dfas_nbD = pd.DataFrame(columns=chr_list_a+chr_list_b) #D stands for Daughter cell
+dfas_nbM = pd.DataFrame(columns=chr_list_a+chr_list_b) #M stands for Mother cell
+for g in data_gamma: #with each iteration we call mutations at the same rate for D and M
+    chr_mu_dictD = mk_chr_mu_dict(g,chr_lenlist,tot_bp,chr_list_a,chr_list_b)
+    chr_mu_dictM = mk_chr_mu_dict(g,chr_lenlist,tot_bp,chr_list_a,chr_list_b)
+    data_poisson2D = chr_mut_bp(chr_mu_dictD, 1)
+    data_poisson2M = chr_mut_bp(chr_mu_dictM, 1)
+    dfa2D = pd.DataFrame.from_dict(data_poisson2D)
+    dfa2M = pd.DataFrame.from_dict(data_poisson2M)
+    dfas_nbD = dfas_nbD.append(dfa2D, ignore_index=True)
+    dfas_nbM = dfas_nbM.append(dfa2M, ignore_index=True)
+df2_bnb_cell1D,df2_bnb_cell2D = df_binomialize(dfas_nbD)#mimics segregation; produces "tidy" tables.
+df2_bnb_cell1M,df2_bnb_cell2M = df_binomialize(dfas_nbM)
+df2totalbnbsums=pd.DataFrame()
+df2totalbnbsums["Chr"]=df2_bnb_cell1D["Chr"]
+df2totalbnbsums["Da"]=df2_bnb_cell1D["Segregant 1"]
+df2totalbnbsums["Db"]=df2_bnb_cell2D["Segregant 2"]
+df2totalbnbsums["Dm"]=df2totalbnbsums["Da"]+df2totalbnbsums["Db"]
+df2totalbnbsums["Ma"]=df2_bnb_cell1M["Segregant 1"]
+df2totalbnbsums["Mb"]=df2_bnb_cell2M["Segregant 2"]
+df2totalbnbsums["Mm"]=df2totalbnbsums["Ma"]+df2totalbnbsums["Mb"]
+df2totalbnbsums["Dm"] = df2totalbnbsums["Dm"].astype(float)
+df2totalbnbsums["Mm"] = df2totalbnbsums["Mm"].astype(float)
+# print(df2totalbnbsums)
+
+"""Creates data frame of actual data (Da,Db,Dm,Ma,Mb,Mm) for comparison."""
+df_datachr = pd.read_csv("G:\My Drive\Volatility File Share\Data\MutperSegperChrm.csv")
+
+sns.set(style="white", palette="bright", color_codes=True, rc={"lines.linewidth": 1.0})
+plt.rcParams['patch.linewidth'] = 1
+
+"""Plots the distributions of the mismatches segregated to daughter or mother cells in the simulated and actual data.
+Used for Fig.2b"""
+fig1, ax = plt.subplots(figsize=(2,2))
+sns.distplot(data_poisson,
+             hist=False,
+              bins=range(30,230,5),
+#               kde=False,
+#               norm_hist=True,
+              color="deeppink",
+            kde_kws={"lw":0.4})
+
+sns.distplot(data_nb,
+              bins=range(30,230,5),
+             hist=False,
+#               kde=False,
+#               norm_hist=True,
+              color="c",
+            kde_kws={"lw":0.7})
+# sns.distplot(df["Mm"],
+#               bins=range(30,200,5),
+#               kde=False,
+#               norm_hist=True,
+#               color="silver")
+sns.distplot(df_data["Dm"],
+              bins=range(30,230,5),
+              kde=False,
+              norm_hist=True,
+              color="darkgoldenrod")
+sns.distplot(df_data["Mm"],
+              bins=range(30,230,5),
+              kde=False,
+              norm_hist=True,
+              color="blueviolet")
+ax.set(xlim=(30, 210), xlabel='Mismatches/Div', ylabel='Density')
+ax.tick_params(bottom=True,left=True,labelsize=8)
+fig1.savefig(f"{File_save_location}/MismatchDis612a.pdf",transparent = True,bbox_inches='tight')
+
+"""Plots the linear regressions of the nb model and the actual data. Used for Fig.2c"""
+fig2, ax = plt.subplots(figsize=(2,2))
+sns.regplot(x="Dm", y="Mm", data=dfnb, marker='o', color="lightsteelblue", scatter_kws={'s':7},line_kws={'color':"steelblue"})
+sns.regplot(x="Dm", y="Mm", data=df_data, color="green",marker='o', scatter_kws={'s':11})
+ax.set(ylim=(50, 225))
+ax.set(xlim=(50, 225))
+ax.set(xlabel='Dm', ylabel='Mm')
+ax.tick_params(bottom=True,left=True, labelsize=8)
+fig2.savefig(f"{File_save_location}/lineRegDmMmnb1V2a.pdf",transparent = True,bbox_inches='tight')
+
+"""Plots the linear regressions of the gp model and the actual data. Used for Fig.2d"""
+fig3, ax = plt.subplots(figsize=(2,2))
+sns.regplot(x="Dm", y="Mm", data=dfgp, marker='o', color="wheat", scatter_kws={'s':7},line_kws={'color':"orange"})
+sns.regplot(x="Dm", y="Mm", data=df_data, color="green",marker='o', scatter_kws={'s':11})
+ax.set(ylim=(50, 225))
+ax.set(xlim=(50, 225))
+ax.set(xlabel='Dm', ylabel='Mm')
+ax.tick_params(bottom=True,left=True, labelsize=8)
+fig3.savefig(f"{File_save_location}/lineRegDmMmgpV2a.pdf",transparent = True,bbox_inches='tight')
+
+"""Plots the linear regressions of the bnb model and the actual data."""
+fig4, ax = plt.subplots(figsize=(2,2))
+sns.regplot(x="Dm", y="Mm", data=df2totalbnbsums, marker='o', color="orange", scatter_kws={'s':11,'alpha':0.3})
+sns.regplot(x="Dm", y="Mm", data=df_datachr, color="green",marker='o', scatter_kws={'s':11,'alpha':0.2})
+ax.set(ylim=(0, 35))
+ax.set(xlim=(0, 35))
+ax.set(xlabel='Dm/Chr', ylabel='Mm/Chr')
+ax.tick_params(bottom=True,left=True, labelsize=8)
+fig4.savefig(f"{File_save_location}/lineRegDmMmChrsAa.pdf",transparent = True, bbox_inches='tight')
 
 sns.set(style="white", palette="bright", color_codes=True, rc={"lines.linewidth": 1.0})
 plt.rcParams['patch.linewidth'] = 0
 
-"""Plots the linear regressions of the nb model and the actual data."""
-fig1, ax = plt.subplots(figsize=(2,2))
-sns.regplot(x="Dm", y="Mm", data=dfnb, marker='o', color="peachpuff", scatter_kws={'s':7},line_kws={'color':"peru"})
-sns.regplot(x="Dm", y="Mm", data=df_data, color="green",marker='o', scatter_kws={'s':11})
-ax.set(ylim=(50, 225))
-ax.set(xlim=(50, 225))
-ax.set(xlabel='Dm', ylabel='Mm')
-ax.tick_params(bottom=True,left=True, labelsize=8)
-fig1.savefig(f"{File_save_location}/lineRegDmMmnb1.pdf",transparent = True,bbox_inches='tight')
+"""Plots Poisson vs nb vs gp distributions based on the full error counts for Fig.2f."""
+fig5, ax = plt.subplots(figsize=(2, 2))
 
-"""Plots the linear regressions of the gp model and the actual data."""
-fig2, ax = plt.subplots(figsize=(2,2))
-sns.regplot(x="Dm", y="Mm", data=dfgp, marker='o', color="silver", scatter_kws={'s':7},line_kws={'color':"gray"})
-sns.regplot(x="Dm", y="Mm", data=df_data, color="green",marker='o', scatter_kws={'s':11})
-ax.set(ylim=(50, 225))
-ax.set(xlim=(50, 225))
-ax.set(xlabel='Dm', ylabel='Mm')
-ax.tick_params(bottom=True,left=True, labelsize=8)
-fig2.savefig(f"{File_save_location}/lineRegDmMmgp.pdf",transparent = True,bbox_inches='tight')
+sns.distplot(Dplist,
+                bins=[i for i in np.arange(0.25,10,0.02)],
+                  kde=False, norm_hist=True,
+                  color='gray')
+ax = sns.distplot(Dnblist,
+                  bins=[i for i in np.arange(0.25,10,0.02)],
+                  kde=False, norm_hist=True,
+                  color='blue')
+ax = sns.distplot(Dgplist,
+                  bins=[i for i in np.arange(0.25,10,0.02)],
+                  kde=False, norm_hist=True,
+                  color='orange')
+ax.tick_params(bottom=True,left=True,labelsize=10)
+ax.set(xlabel='Index of Dispersion', ylabel='Density')
 
-"""Plots the linear regressions of the gp model and the normalized actual data."""
-fig2, ax = plt.subplots(figsize=(2,2))
-sns.regplot(x="Dm", y="Mm", data=dfgp, marker='o', color="silver", scatter_kws={'s':7},line_kws={'color':"gray"})
-sns.regplot(x="Dm", y="Mm", data=df_data_N, color="red",marker='o', scatter_kws={'s':11})
-ax.set(ylim=(50, 225))
-ax.set(xlim=(50, 225))
-ax.set(xlabel='Dm', ylabel='Mm')
-ax.tick_params(bottom=True,left=True, labelsize=8)
-fig2.savefig(f"{File_save_location}/lineRegDmMmgpN.pdf",transparent = True,bbox_inches='tight')
-
-
-"""Plots the distributions of Dm and Mm from the nb model and actual data."""
-fig3, ax = plt.subplots(figsize=(2,2))
-
-sns.distplot(dfnb["Dm"],
-              bins=range(30,230,5),
-             hist=False,
-#               kde=False,
-#               norm_hist=True,
-              color="cyan",
-            kde_kws={"lw":0.7})
-sns.distplot(dfnb["Mm"],
-              bins=range(30,200,5),
-             hist=False,
-#               kde=False,
-#               norm_hist=True,
-              color="silver")
-sns.distplot(df_data["Dm"],
-              bins=range(30,230,5),
-             hist=False,
-#               kde=False,
-#               norm_hist=True,
-              color="goldenrod")
-sns.distplot(df_data["Mm"],
-              bins=range(30,230,5),
-             hist=False,
-#               kde=False,
-#               norm_hist=True,
-              color="blueviolet")
-ax.set(xlim=(30, 210), xlabel='Mismatches/Div (nb)', ylabel='Density')
-ax.tick_params(bottom=True,left=True,labelsize=8)
-fig3.savefig(f"{File_save_location}/MismatchDistnb1.pdf",transparent = True,bbox_inches='tight')
-
-fig4, ax = plt.subplots(figsize=(2,2))
-sns.distplot(dfnb["sum"],
-                  bins=range(100,400,10),
-                  kde=False,
-                  norm_hist=True,
-                  color="peru")
-sns.distplot(df_data["sum"],
-                  bins=range(100,400,10),
-                  kde=False,
-                  norm_hist=True,
-                  color="green")
-ax.set(xlabel='Total Errors/Div (nb)', ylabel='Density')
-ax.tick_params(bottom=True,left=True,labelsize=8)
-fig4.savefig(f"{File_save_location}/TotErDistnb1.pdf",transparent = True,bbox_inches='tight')
-
-"""Plots the distributions of Dm and Mm from the gp model and actual data."""
-fig5, ax = plt.subplots(figsize=(2,2))
-
-sns.distplot(dfgp["Dm"],
-              bins=range(30,230,5),
-             hist=False,
-#               kde=False,
-#               norm_hist=True,
-              color="cyan",
-            kde_kws={"lw":0.7})
-sns.distplot(dfgp["Mm"],
-              bins=range(30,200,5),
-             hist=False,
-#               kde=False,
-#               norm_hist=True,
-              color="silver")
-sns.distplot(df_data["Dm"],
-              bins=range(30,230,5),
-             hist=False,
-#               kde=False,
-#               norm_hist=True,
-              color="goldenrod")
-sns.distplot(df_data["Mm"],
-              bins=range(30,230,5),
-             hist=False,
-#               kde=False,
-#               norm_hist=True,
-              color="blueviolet")
-ax.set(xlim=(30, 210), xlabel='Mismatches/Div (gp)', ylabel='Density')
-ax.tick_params(bottom=True,left=True,labelsize=8)
-fig5.savefig(f"{File_save_location}/MismatchDistgp1.pdf",transparent = True,bbox_inches='tight')
-
-fig6, ax = plt.subplots(figsize=(2,2))
-sns.distplot(dfnb["sum"],
-                  bins=range(100,400,10),
-                  kde=False,
-                  norm_hist=True,
-                  color="peru")
-sns.distplot(df_data["sum"],
-                  bins=range(100,400,10),
-                  kde=False,
-                  norm_hist=True,
-                  color="green")
-ax.set(xlabel='Total Errors/Div (gp)', ylabel='Density')
-ax.tick_params(bottom=True,left=True,labelsize=8)
-fig6.savefig(f"{File_save_location}/TotErDistgp1.pdf",transparent = True,bbox_inches='tight')
+fig5.savefig(f"{File_save_location}/SimFullCountsNbMM2a.pdf",transparent = True,bbox_inches='tight')
