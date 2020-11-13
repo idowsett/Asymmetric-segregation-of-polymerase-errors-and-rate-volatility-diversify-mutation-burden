@@ -1,4 +1,4 @@
-# For Fig.3e,f Dowsett et al.
+# For Fig.3e,f Dowsett et al. Uploaded onto Github 11.13.20
 import glob
 import pandas as pd
 import numpy as np
@@ -187,6 +187,12 @@ sns.distplot(df2_p['sum'],
                   norm_hist=True,
                   color='orange')
 
+# sns.distplot(df_nb['sum'],
+#                   bins=list(range(20,120,2)),
+#              hist = False,
+# #                   kde=False,
+#                   norm_hist=True,
+#                   color='green')
 sns.distplot(df2_nb['sum'],
                   bins=list(range(20,120,2)),
              hist = False,
