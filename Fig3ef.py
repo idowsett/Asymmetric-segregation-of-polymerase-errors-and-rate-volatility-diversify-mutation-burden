@@ -187,12 +187,6 @@ sns.distplot(df2_p['sum'],
                   norm_hist=True,
                   color='orange')
 
-# sns.distplot(df_nb['sum'],
-#                   bins=list(range(20,120,2)),
-#              hist = False,
-# #                   kde=False,
-#                   norm_hist=True,
-#                   color='green')
 sns.distplot(df2_nb['sum'],
                   bins=list(range(20,120,2)),
              hist = False,
